@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card } from 'primereact/card';
 import { Chart } from 'primereact/chart';
 import { Tag } from 'primereact/tag';
@@ -14,18 +14,44 @@ export default function Home() {
     // ESTADO PARA EL MODAL EMERGENTE DE PRECIOS
     const [isAiModalOpen, setAiModalOpen] = useState(false);
 
-    const sprintStats = {
-        1: { points: 120, bugs: 2, progress: 85, status: 'ACTIVE', data: [100, 95, 80, 80, 50, 45, 20, 5] },
-        2: { points: 150, bugs: 5, progress: 100, status: 'CLOSED', data: [150, 130, 110, 90, 70, 40, 10, 0] },
-        3: { points: 90, bugs: 0, progress: 10, status: 'PLANNING', data: [90, 88, 88, 85, 85, 82, 80, 80] }
-    };
+    // ESTADOS PARA EL BACKEND
+    const [dashboardData, setDashboardData] = useState(null);
+    const [loading, setLoading] = useState(true);
 
-    const burndownData = {
-        labels: ['Día 1', 'Día 3', 'Día 5', 'Día 7', 'Día 9', 'Día 11', 'Día 13', 'Día 15'],
+    // LLAMADA A SPRING BOOT CUANDO CAMBIA EL SPRINT
+    useEffect(() => {
+        const fetchDashboardData = async () => {
+            setLoading(true);
+            try {
+                // NOTA: Recuerda cambiar el "SPRINT-" por tu ID real si ya creaste uno (Ej: "SPR-A1B2C3")
+                const response = await fetch(`http://localhost:8090/api/v1/analytics/dashboard/sprint/SPRINT-${activeSprint}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    setDashboardData(data);
+                } else {
+                    setDashboardData(null);
+                }
+            } catch (error) {
+                console.error("Error al cargar el dashboard:", error);
+                setDashboardData(null);
+            } finally {
+                setLoading(false);
+            }
+        };
+
+        fetchDashboardData();
+    }, [activeSprint]);
+
+
+    // ==========================================
+    // MAPEO DINÁMICO DE DATOS (Protegido por if ternarios)
+    // ==========================================
+    const burndownData = dashboardData ? {
+        labels: dashboardData.burndown.map(b => b.day),
         datasets: [
             {
                 label: 'Línea Ideal',
-                data: [100, 85, 70, 55, 40, 25, 10, 0],
+                data: dashboardData.burndown.map(b => b.ideal),
                 borderColor: '#cbd5e1',
                 borderWidth: 3,
                 borderDash: [5, 5],
@@ -34,7 +60,7 @@ export default function Home() {
             },
             {
                 label: `Trabajo Real - Sprint ${activeSprint}`,
-                data: sprintStats[activeSprint].data,
+                data: dashboardData.burndown.map(b => b.real),
                 borderColor: '#f97316',
                 borderWidth: 5, 
                 backgroundColor: 'rgba(249, 115, 22, 0.1)',
@@ -42,7 +68,7 @@ export default function Home() {
                 tension: 0.4
             }
         ]
-    };
+    } : null;
 
     const burndownOptions = {
         maintainAspectRatio: false,
@@ -53,39 +79,46 @@ export default function Home() {
         }
     };
 
-    // DATOS DE ACTIVIDAD
-    const activities = [
-        { id: 1, user: 'Sergio Gómez', action: 'movió la historia US-02 a Code Review', time: 'Hace 5 minutos', icon: 'pi pi-arrows-h', color: '#0ea5e9' },
-        { id: 2, user: 'Valeria Mendoza', action: 'subió la grabación "Sprint 1 Retrospective"', time: 'Hace 2 horas', icon: 'pi pi-video', color: '#f97316' },
-        { id: 3, user: 'Jose Saico', action: 'resolvió 2 incidencias críticas (Bugs)', time: 'Hace 4 horas', icon: 'pi pi-check-circle', color: '#22c55e' },
-        { id: 4, user: 'ManageWise AI', action: 'sugiere reasignar 5 puntos de historia por riesgo de retraso', time: 'Ayer', icon: 'pi pi-sparkles', color: '#fbbf24' }
-    ];
+    const distributionData = dashboardData ? {
+        labels: Object.keys(dashboardData.distribution),
+        datasets: [{ 
+            data: Object.values(dashboardData.distribution), 
+            backgroundColor: ['#f97316', '#0f172a', '#ef4444'] 
+        }]
+    } : null;
+
+    const teamEffortData = dashboardData ? {
+        labels: dashboardData.teamEfforts.map(t => t.memberName),
+        datasets: [{ 
+            label: 'Puntos', 
+            backgroundColor: '#f97316', 
+            data: dashboardData.teamEfforts.map(t => t.points) 
+        }]
+    } : null;
 
     return (
         <div className="dashboard-wrapper">
+            
+            {/* EL MENÚ LATERAL (Siempre visible) */}
             <aside className="dashboard-sidebar">
                 <div className="brand">ManageWise</div>
                 
-                {/* MENU PRINCIPAL */}
                 <nav className="nav-links">
                     <div className="nav-item active" onClick={() => navigate('/home')}><i className="pi pi-chart-line"></i> DASHBOARD</div>
                     <div className="nav-item" onClick={() => navigate('/backlog')}><i className="pi pi-list"></i> BACKLOG</div>
                     <div className="nav-item" onClick={() => navigate('/members')}><i className="pi pi-users"></i> TEAM</div>
                     <div className="nav-item" onClick={() => navigate('/meeting')}><i className="pi pi-video"></i> MEETINGS</div>
                     
-                    {/* Abre el Modal de Precios */}
                     <div className="nav-item" onClick={() => navigate('/activity')}>
                         <i className="pi pi-history"></i> ACTIVITY FEED
                         <span className="pro-text">PRO</span>
                     </div>
                     
-                    {/* Abre el Modal de Precios */}
                     <div className="nav-item" onClick={() => navigate('/reports')}>
                         <i className="pi pi-file-export"></i> REPORTES
                         <span className="pro-text">PRO</span>
                     </div>
 
-                    {/* Abre el Modal de Precios */}
                     <div className="nav-item ai-nav-item" onClick={() => navigate('/ManageWiseAI')}>
                         <i className="pi pi-sparkles" style={{ color: '#fbbf24' }}></i> 
                         <div className="ai-text">
@@ -103,19 +136,20 @@ export default function Home() {
                 </div>
             </aside>
 
+            {/* CONTENIDO PRINCIPAL */}
             <main className="dashboard-content">
                 <div className="content-inner">
+                    
+                    {/* LA CABECERA (Siempre visible) */}
                     <header className="content-header">
                         <div>
                             <h1>Panel de Control del Proyecto</h1>
                             <p>Gestión avanzada de rendimiento para <strong>ManageWise</strong>.</p>
                         </div>
                         
-                        {/* Botones de Exportación */}
                         <div className="export-actions">
                             <span className="export-label">Exportar Reportes:</span>
                             <div className="export-buttons-group">
-                                {/* OJO AQUÍ: Quité "p-button-outlined" para que sea rojo sólido */}
                                 <Button icon="pi pi-file-pdf" className="p-button-danger action-btn-sm" tooltip="Exportar a PDF" tooltipOptions={{position: 'top'}} onClick={() => setAiModalOpen(true)} />
                                 <Button icon="pi pi-file-excel" className="p-button-outlined p-button-success action-btn-sm" tooltip="Exportar a Excel" tooltipOptions={{position: 'top'}} onClick={() => setAiModalOpen(true)} />
                                 <Button icon="pi pi-chart-bar" className="p-button-outlined p-button-help action-btn-sm" tooltip="Conectar con Power BI" tooltipOptions={{position: 'top'}} onClick={() => setAiModalOpen(true)} />
@@ -123,72 +157,91 @@ export default function Home() {
                         </div>
                     </header>
 
-                    <div className="main-grid-layout">
-                        {/* Sprints */}
-                        <div className="sprint-navigation">
-                            <h2 className="section-label">Sprints del Proyecto</h2>
-                            <div className="sprint-list">
-                                {[1, 2, 3].map(num => (
-                                    <div 
-                                        key={num} 
-                                        className={`sprint-hero-card ${activeSprint === num ? 'active' : ''}`}
-                                        onClick={() => setActiveSprint(num)}
-                                    >
-                                        <div className="sprint-main-info">
-                                            <span className="sprint-number">SPRINT 0{num}</span>
-                                            <Tag value={sprintStats[num].status} severity={num === 1 ? 'success' : 'secondary'} />
-                                        </div>
-                                        <i className="pi pi-chevron-right"></i>
-                                    </div>
-                                ))}
-                            </div>
+                    {/* ======================================================== */}
+                    {/* ZONA CONDICIONAL: AQUI DECIDIMOS QUE MOSTRAR EN EL CENTRO */}
+                    {/* ======================================================== */}
+                    
+                    {loading ? (
+                        
+                        /* ESTADO 1: CARGANDO */
+                        <div style={{ padding: '4rem', textAlign: 'center', color: '#64748b' }}>
+                            <i className="pi pi-spin pi-spinner" style={{ fontSize: '3rem', marginBottom: '1rem', color: '#f97316' }}></i>
+                            <h2>Cargando métricas de tu Sprint...</h2>
                         </div>
 
-                        {/* Gráficos */}
-                        <div className="graphics-section">
-                            <Card className="grid-full main-card-chart" title={`BURNDOWN: SPRINT ${activeSprint}`}>
-                                <div className="chart-container">
-                                    <Chart type="line" data={burndownData} options={burndownOptions} style={{ height: '450px', width: '100%' }} />
-                                </div>
-                            </Card>
+                    ) : !dashboardData ? (
+                        
+                        /* ESTADO 2: NO SE ENCONTRÓ EL SPRINT EN BACKEND */
+                        <div style={{ padding: '3rem', textAlign: 'center', backgroundColor: '#fff', borderRadius: '12px', marginTop: '2rem', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}>
+                            <i className="pi pi-exclamation-circle text-orange" style={{ fontSize: '4rem', marginBottom: '1rem' }}></i>
+                            <h2>No hay datos disponibles para el Sprint {activeSprint}</h2>
+                            <p style={{ color: '#64748b', marginBottom: '2rem' }}>Este Sprint aún no existe en la base de datos o no tiene Historias de Usuario.</p>
+                            <Button label="Volver a intentar" icon="pi pi-refresh" onClick={() => setActiveSprint(1)} />
+                        </div>
 
-                            <div className="lower-grid">
-                                <Card className="grid-half" title="Distribución">
-                                    <Chart type="pie" data={{
-                                        labels: ['Features', 'Bugs', 'Refactor'],
-                                        datasets: [{ data: [65, 20, 15], backgroundColor: ['#f97316', '#0f172a', '#ef4444'] }]
-                                    }} style={{ height: '280px', width: '100%' }} />
-                                </Card>
+                    ) : (
 
-                                <Card className="grid-half" title="Esfuerzo del Equipo">
-                                    <Chart type="bar" data={{
-                                        labels: ['Sergio', 'Jose', 'Luni'],
-                                        datasets: [{ label: 'Puntos', backgroundColor: '#f97316', data: [12, 19, 8] }]
-                                    }} style={{ height: '280px', width: '100%' }} />
-                                </Card>
-                            </div>
-
-                            {/* Métricas */}
-                            <Card className="grid-full metrics-footer">
-                                <div className="giant-stats">
-                                    <div className="g-stat">
-                                        <span className="g-label">PUNTOS TOTALES</span>
-                                        <h2 className="g-value">{sprintStats[activeSprint].points}</h2>
-                                    </div>
-                                    <div className="g-stat">
-                                        <span className="g-label">PROGRESO</span>
-                                        <h2 className="g-value text-orange">{sprintStats[activeSprint].progress}%</h2>
-                                    </div>
-                                    <div className="g-stat">
-                                        <span className="g-label">INCIDENCIAS</span>
-                                        <h2 className="g-value text-red">{sprintStats[activeSprint].bugs}</h2>
-                                    </div>
-                                </div>
-                            </Card>
-
+                        /* ESTADO 3: ¡DATOS LISTOS! MOSTRAMOS LOS GRÁFICOS */
+                        <div className="main-grid-layout">
                             
+                            <div className="sprint-navigation">
+                                <h2 className="section-label">Sprints del Proyecto</h2>
+                                <div className="sprint-list">
+                                    {[1, 2, 3].map(num => (
+                                        <div 
+                                            key={num} 
+                                            className={`sprint-hero-card ${activeSprint === num ? 'active' : ''}`}
+                                            onClick={() => setActiveSprint(num)}
+                                        >
+                                            <div className="sprint-main-info">
+                                                <span className="sprint-number">SPRINT 0{num}</span>
+                                                <Tag 
+                                                    value={activeSprint === num ? 'ACTIVE' : 'CLOSED'} 
+                                                    severity={activeSprint === num ? 'success' : 'secondary'} 
+                                                />
+                                            </div>
+                                            <i className="pi pi-chevron-right"></i>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="graphics-section">
+                                <Card className="grid-full main-card-chart" title={`BURNDOWN: SPRINT ${activeSprint}`}>
+                                    <div className="chart-container">
+                                        <Chart type="line" data={burndownData} options={burndownOptions} style={{ height: '450px', width: '100%' }} />
+                                    </div>
+                                </Card>
+
+                                <div className="lower-grid">
+                                    <Card className="grid-half" title="Distribución">
+                                        <Chart type="pie" data={distributionData} style={{ height: '280px', width: '100%' }} />
+                                    </Card>
+
+                                    <Card className="grid-half" title="Esfuerzo del Equipo">
+                                        <Chart type="bar" data={teamEffortData} style={{ height: '280px', width: '100%' }} />
+                                    </Card>
+                                </div>
+
+                                <Card className="grid-full metrics-footer">
+                                    <div className="giant-stats">
+                                        <div className="g-stat">
+                                            <span className="g-label">PUNTOS TOTALES</span>
+                                            <h2 className="g-value">{dashboardData.metrics.totalPoints}</h2>
+                                        </div>
+                                        <div className="g-stat">
+                                            <span className="g-label">PROGRESO</span>
+                                            <h2 className="g-value text-orange">{dashboardData.metrics.progressPercentage}%</h2>
+                                        </div>
+                                        <div className="g-stat">
+                                            <span className="g-label">INCIDENCIAS</span>
+                                            <h2 className="g-value text-red">{dashboardData.metrics.incidences}</h2>
+                                        </div>
+                                    </div>
+                                </Card>
+                            </div>
                         </div>
-                    </div>
+                    )}
                 </div>
             </main>
 
