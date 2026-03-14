@@ -51,8 +51,8 @@ export default function Members() {
         setIsLoading(true);
         try {
             const [membersRes, rolesRes] = await Promise.all([
-                fetch(`${API_BASE}/team-members/project/${currentProjectId}`), // 🚨 Usamos ID Real
-                fetch(`${API_BASE}/roles`)
+                fetch(`${API_BASE}/team-members/project/${currentProjectId}`), 
+                fetch(`${API_BASE}/roles/project/${currentProjectId}`) // ✅ SOLUCIONADO
             ]);
 
             if (membersRes.ok) {
@@ -78,7 +78,14 @@ export default function Members() {
         if (!newRoleName.trim()) return;
         
         const safeValue = newRoleName.trim().toUpperCase().replace(/\s+/g, '_');
-        const rolePayload = { label: newRoleName, value: safeValue, color: newRoleColor };
+        
+        // 🚨 SOLUCIÓN: Agregamos projectId: currentProjectId aquí 👇
+        const rolePayload = { 
+            label: newRoleName, 
+            value: safeValue, 
+            color: newRoleColor,
+            projectId: currentProjectId 
+        };
         
         try {
             const res = await fetch(`${API_BASE}/roles`, {
@@ -88,7 +95,7 @@ export default function Members() {
             });
             
             if (res.ok) {
-                fetchData(); 
+                fetchData(); // Recarga la lista de roles
                 setNewRoleName('');
                 setNewRoleColor('#0ea5e9');
             }

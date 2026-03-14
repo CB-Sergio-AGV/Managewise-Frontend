@@ -10,12 +10,10 @@ import './Backlog.css';
 
 const API_BASE = 'http://localhost:8090/api/v1';
 
-// 🚨 BORRAMOS EL DEFAULT_PROJECT_ID DE AQUÍ ARRIBA PORQUE AHORA ES DINÁMICO
-
 export default function Backlog() {
     const navigate = useNavigate();
     
-    // 🚀 MAGIA: Sacamos el ID del proyecto actual directo de la memoria al entrar a la pantalla
+    // 🚀 MAGIA: Sacamos el ID del proyecto actual directo de la memoria
     const currentProjectId = localStorage.getItem('current_project_id');
 
     // --- ESTADOS DE LOS MODALES ---
@@ -64,27 +62,26 @@ export default function Backlog() {
     const [sprintToComplete, setSprintToComplete] = useState(null);
 
     // ==========================================
-    // 1. CARGA INICIAL FILTRADA POR PROYECTO
+    // 1. CARGA INICIAL (Conectada al Backend Multi-Tenant)
     // ==========================================
     const fetchAllData = async () => {
         if (!currentProjectId) {
-            // Si por algún error entramos sin ID, nos regresa a proyectos
             navigate('/projects');
             return;
         }
 
         setIsLoading(true);
         try {
+            // 🚨 AHORA LLAMAMOS A LAS RUTAS FILTRADAS DE JAVA
             const [epicsRes, sprintsRes, storiesRes, membersRes] = await Promise.all([
-                fetch(`${API_BASE}/epics`),
-                fetch(`${API_BASE}/sprints`),
-                fetch(`${API_BASE}/user-stories`),
-                fetch(`${API_BASE}/team-members/project/${currentProjectId}`) // Usamos ID real
+                fetch(`${API_BASE}/epics`), // (Asumiendo que a epics aún no le haces la ruta de project)
+                fetch(`${API_BASE}/sprints/project/${currentProjectId}`), // ✅ Filtrado desde Java
+                fetch(`${API_BASE}/user-stories/project/${currentProjectId}`), // ✅ Filtrado desde Java
+                fetch(`${API_BASE}/team-members/project/${currentProjectId}`) // ✅ Filtrado desde Java
             ]);
 
             if (epicsRes.ok) {
                 const epicsData = await epicsRes.json();
-                // Opcional: También filtramos épicas por si tu backend ya lo soporta
                 const misEpicas = epicsData.filter(e => e.projectId === currentProjectId || !e.projectId);
                 setEpics(misEpicas.map(e => ({ 
                     label: e.title, 
@@ -102,18 +99,14 @@ export default function Backlog() {
             }
 
             if (sprintsRes.ok && storiesRes.ok) {
-                const sprintsData = await sprintsRes.json();
-                const storiesData = await storiesRes.json();
-                
-                // 🚨 FILTRAMOS LAS HISTORIAS Y SPRINTS
-                const misHistorias = storiesData.filter(s => s.projectId === currentProjectId);
-                const misSprints = sprintsData.filter(s => s.projectId === currentProjectId);
+                // 🚨 RECIBIMOS LOS DATOS YA FILTRADOS POR JAVA (Ya no filtramos aquí en React)
+                const misSprints = await sprintsRes.json();
+                const misHistorias = await storiesRes.json();
 
-                // 🚨 AHORA USAMOS "misSprints" y "misHistorias" PARA DIBUJAR LA PANTALLA
                 const formattedSprints = misSprints.map(s => ({
                     id: s.id,
                     name: s.name,
-                    dates: `Finaliza: ${s.endDate || 'Sin fecha'}`,
+                    dates: `Finaliza: ${s.endDate ? s.endDate.split('T')[0] : 'Sin fecha'}`,
                     status: s.status || 'PLANNING',
                     stories: misHistorias.filter(story => story.sprintId === s.id)
                 }));
@@ -142,7 +135,7 @@ export default function Backlog() {
         const nuevaEpicaPayload = { 
             title: newEpicName, 
             description: newEpicColor,
-            projectId: currentProjectId // 🚀 Añadido
+            projectId: currentProjectId 
         };
         try {
             const response = await fetch(`${API_BASE}/epics`, {
@@ -175,7 +168,7 @@ export default function Backlog() {
                     points: parseInt(newStoryPoints) || 0,
                     assigneeId: newStoryUser || null,
                     status: newStoryStatus,
-                    projectId: currentProjectId // 🚀 Añadido
+                    projectId: currentProjectId 
                 };
                 const res = await fetch(`${API_BASE}/user-stories/${editingStoryId}`, {
                     method: 'PUT',
@@ -190,7 +183,7 @@ export default function Backlog() {
                     sprintId: null, 
                     points: parseInt(newStoryPoints) || 0,
                     assigneeId: newStoryUser || null,
-                    projectId: currentProjectId // 🚀 Añadido
+                    projectId: currentProjectId 
                 };
                 const res = await fetch(`${API_BASE}/user-stories`, {
                     method: 'POST',
@@ -212,7 +205,7 @@ export default function Backlog() {
             goal: newSprintGoal,
             endDate: newSprintEndDate,
             status: 'PLANNING',
-            projectId: currentProjectId // 🚀 Añadido
+            projectId: currentProjectId 
         };
 
         try {
@@ -234,8 +227,6 @@ export default function Backlog() {
         setNewSprintEndDate('');
         setSprintModalOpen(false);
     };
-
-    // ... (El resto de las funciones de eliminar, drag & drop, completar sprint, etc. se mantienen igual)
     
     const eliminarEpica = async (epicId) => {
         try {
@@ -363,7 +354,7 @@ export default function Backlog() {
                 points: movedStory.points || 0,
                 assigneeId: movedStory.assigneeId || null,
                 status: movedStory.status || "TO_DO",
-                projectId: currentProjectId // 🚀 Añadido al Drag and Drop
+                projectId: currentProjectId 
             };
 
             await fetch(`${API_BASE}/user-stories/${storyId}`, {
@@ -461,7 +452,7 @@ export default function Backlog() {
                     <div className="nav-item" onClick={() => navigate('/members')}><i className="pi pi-users"></i> TEAM</div>
                     <div className="nav-item" onClick={() => navigate('/meeting')}><i className="pi pi-video"></i> MEETINGS</div>
                     
-                    <div className="nav-item" onClick={() => setAiModalOpen(true)}>
+                    <div className="nav-item" onClick={() => navigate('/activity')}>
                         <i className="pi pi-history"></i> ACTIVITY FEED
                         <span className="pro-text">PRO</span>
                     </div>
@@ -571,7 +562,6 @@ export default function Backlog() {
                 </div>
             </main>
 
-            {/* MODALES IGUAL QUE SIEMPRE */}
             <Dialog header="Administrar Épicas" visible={isEpicModalOpen} style={{ width: '450px' }} onHide={() => setEpicModalOpen(false)}>
                 <div className="modal-form">
                     <div className="epic-creation-zone">
